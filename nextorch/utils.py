@@ -919,7 +919,7 @@ def find_nearest_value(values: ArrayLike1d, x: float) -> Tuple[float, int]:
     return ans, index_target
 
 
-def encode_xv(xv: ArrayLike1d, encoding: ArrayLike1d, encoding_unit: ArrayLike1d) -> ArrayLike1d:
+def real_encode_xv(xv: ArrayLike1d, encoding: ArrayLike1d, encoding_unit: ArrayLike1d) -> ArrayLike1d:
     """Convert original data to encoded data
 
     Parameters
@@ -942,6 +942,30 @@ def encode_xv(xv: ArrayLike1d, encoding: ArrayLike1d, encoding_unit: ArrayLike1d
         # xv_encoded[i], _ = find_nearest_value(encoding, xv[i])
         _, index = find_nearest_value(encoding, xv[i])
         xv_encoded[i] = encoding_unit[index]
+    
+    return xv_encoded
+
+def unit_encode_xv(xv: ArrayLike1d, encoding: ArrayLike1d) -> ArrayLike1d:
+    """Convert original data to encoded data
+
+    Parameters
+    ----------
+    xv : ArrayLike1d
+        original x array
+    encoding : ArrayLike1d
+        encoding array
+
+    Returns
+    -------
+    xv_encoded: ArrayLike1d
+        encoded data array
+    """
+
+    xv_encoded =  copy.deepcopy(xv)
+    xv_encoded = tensor_to_np(xv_encoded)
+
+    for i in range(len(xv)):
+        xv_encoded[i], _ = find_nearest_value(encoding, xv[i])
     
     return xv_encoded
 
@@ -1038,7 +1062,7 @@ def real_to_encode_X(
             Xencode[:,i] =  unitscale_xv(xi, X_ranges[i])
         else: #categorical and oridinal
             encoding_unit = unitscale_xv(encodings[i], X_ranges[i])
-            Xencode[:, i] = encode_xv(xi, encodings[i], encoding_unit)
+            Xencode[:, i] = real_encode_xv(xi, encodings[i], encoding_unit)
 
         # Operate on a log scale
         if log_flags[i]: 
@@ -1108,7 +1132,7 @@ def unit_to_encode_X(
             Xencode[:, i] = xi
         else: #categorical and oridinal
             encoding_unit = unitscale_xv(encodings[i], X_ranges[i])
-            Xencode[:, i] = encode_xv(xi, encodings[i], encoding_unit)
+            Xencode[:, i] = unit_encode_xv(xi, encoding_unit)
 
         # Operate on a log scale
         if log_flags[i]: 
