@@ -464,7 +464,9 @@ def get_top_k_candidates(
     acq_func: AcquisitionFunction, 
     acq_func_name: str, 
     bounds: Tensor,
-    k: Optional[int] = 1
+    k: Optional[int] = 1,
+    equality_constraints: Optional[list] = None,
+    inequality_constraints: Optional[list] = None
 ) -> Tensor:
     """Return the top k candidates which 
     maximize the acqusicition function value
@@ -480,7 +482,19 @@ def get_top_k_candidates(
         Bounds of each X
     k : Optional[int], optional
         number of candidates, by default 1
-
+    equality_constraints : Optional[(list[tuple[Tensor, Tensor, float]] | None)], optional
+        A list of tuples (indices, coefficients, rhs), with each tuple encoding an 
+        equality constraint of the form sum_i (X[indices[i]] * coefficients[i]) = rhs. 
+        See the docstring of make_scipy_linear_constraints for an example. 
+    inequality_constraints : Optional[(list[tuple[Tensor, Tensor, float]] | None)], optional
+        A list of tuples (indices, coefficients, rhs), with each tuple encoding an inequality 
+        constraint of the form sum_i (X[indices[i]] * coefficients[i]) >= rhs. indices and 
+        coefficients should be torch tensors. See the docstring of make_scipy_linear_constraints 
+        for an example. When q=1, or when applying the same constraint to each candidate in the 
+        batch (intra-point constraint), indices should be a 1-d tensor. For inter-point constraints, 
+        in which the constraint is applied to the whole batch of candidates, indices must be 
+        a 2-d tensor, where in each row indices[i] =(k_i, l_i) the first index k_i corresponds to 
+        the k_i-th element of the q-batch and the second index l_i corresponds to the l_i-th feature of that element.
     Returns
     -------
     X_new: Tensor
@@ -499,7 +513,9 @@ def get_top_k_candidates(
                                         num_restarts=10, 
                                         raw_samples=100, 
                                         return_best_only=return_best_only,
-                                        sequential=True)
+                                        sequential=True,
+                                        equality_constraints=equality_constraints,
+                                        inequality_constraints=inequality_constraints)
 
     # Case 2 - if an analytical acquisition function is used
     # return the best k points based on the acquisition values
@@ -510,7 +526,9 @@ def get_top_k_candidates(
                             q=1,  # q must be 1 for analytical 
                             num_restarts=10, 
                             raw_samples=100, 
-                            return_best_only=return_best_only)
+                            return_best_only=return_best_only,
+                            equality_constraints=equality_constraints,
+                            inequality_constraints=inequality_constraints)
 
         if k > 1:
             indices_top_k = torch.topk(acq_value.view(-1), k=k, dim=0).indices
@@ -1307,6 +1325,8 @@ class Experiment(BasicExperiment):
         acq_func_name: Optional[str] = 'EI', 
         n_candidates: Optional[int] = 1,
         beta: Optional[float] = 0.2,
+        equality_constraints: Optional[list] = None,
+        inequality_constraints: Optional[list] = None,
         **kwargs
     ) -> Tuple[Tensor, Matrix, AcquisitionFunction]:
         """Generate the next trial point(s)
@@ -1334,6 +1354,19 @@ class Experiment(BasicExperiment):
             The new point in a real scale
         acq_func: AcquisitionFunction
             Current acquisition function, can be used for plotting
+        equality_constraints : Optional[(list[tuple[Tensor, Tensor, float]] | None)], optional
+            A list of tuples (indices, coefficients, rhs), with each tuple encoding an 
+            equality constraint of the form sum_i (X[indices[i]] * coefficients[i]) = rhs. 
+            See the docstring of make_scipy_linear_constraints for an example. 
+        inequality_constraints : Optional[(list[tuple[Tensor, Tensor, float]] | None)], optional
+            A list of tuples (indices, coefficients, rhs), with each tuple encoding an inequality 
+            constraint of the form sum_i (X[indices[i]] * coefficients[i]) >= rhs. indices and 
+            coefficients should be torch tensors. See the docstring of make_scipy_linear_constraints 
+            for an example. When q=1, or when applying the same constraint to each candidate in the 
+            batch (intra-point constraint), indices should be a 1-d tensor. For inter-point constraints, 
+            in which the constraint is applied to the whole batch of candidates, indices must be 
+            a 2-d tensor, where in each row indices[i] =(k_i, l_i) the first index k_i corresponds to 
+            the k_i-th element of the q-batch and the second index l_i corresponds to the l_i-th feature of that element.
 
         .._'botorch.acquisition': https://botorch.org/api/acquisition.html
         """
@@ -1357,7 +1390,9 @@ class Experiment(BasicExperiment):
         X_new = get_top_k_candidates(acq_func=acq_func,
                                      acq_func_name=acq_func_name,
                                      bounds=unit_bounds,
-                                     k=n_candidates)
+                                     k=n_candidates,
+                                     equality_constraints=equality_constraints,
+                                     inequality_constraints=inequality_constraints)
         
         # Encode the X_new if all_continous is false
         # Encoding simply finds the nearest point in the continous space 
@@ -1435,6 +1470,8 @@ class SingleWeightedExperiment(BasicExperiment):
         acq_func_name: Optional[str] = 'EI', 
         n_candidates: Optional[int] = 1,
         beta: Optional[float] = 0.2,
+        equality_constraints: Optional[list] = None,
+        inequality_constraints: Optional[list] = None,
         **kwargs
     ) -> Tuple[Tensor, Matrix, AcquisitionFunction]:
         """Generate the next trial point(s)
@@ -1450,6 +1487,19 @@ class SingleWeightedExperiment(BasicExperiment):
             The point maximizes the acqucision function
         beta : Optional[float], optional
             hyperparameter used in UCB, by default 0.2
+        equality_constraints : Optional[(list[tuple[Tensor, Tensor, float]] | None)], optional
+            A list of tuples (indices, coefficients, rhs), with each tuple encoding an 
+            equality constraint of the form sum_i (X[indices[i]] * coefficients[i]) = rhs. 
+            See the docstring of make_scipy_linear_constraints for an example. 
+        inequality_constraints : Optional[(list[tuple[Tensor, Tensor, float]] | None)], optional
+            A list of tuples (indices, coefficients, rhs), with each tuple encoding an inequality 
+            constraint of the form sum_i (X[indices[i]] * coefficients[i]) >= rhs. indices and 
+            coefficients should be torch tensors. See the docstring of make_scipy_linear_constraints 
+            for an example. When q=1, or when applying the same constraint to each candidate in the 
+            batch (intra-point constraint), indices should be a 1-d tensor. For inter-point constraints, 
+            in which the constraint is applied to the whole batch of candidates, indices must be 
+            a 2-d tensor, where in each row indices[i] =(k_i, l_i) the first index k_i corresponds to 
+            the k_i-th element of the q-batch and the second index l_i corresponds to the l_i-th feature of that element.
         **kwargs：keyword arguments
             Other parameters used by 'botorch.acquisition'_
 
@@ -1494,7 +1544,9 @@ class SingleWeightedExperiment(BasicExperiment):
         X_new = get_top_k_candidates(acq_func=acq_func,
                                      acq_func_name=acq_func_name,
                                      bounds=unit_bounds,
-                                     k=n_candidates)
+                                     k=n_candidates,
+                                     equality_constraints=equality_constraints,
+                                     inequality_constraints=inequality_constraints)
 
         # Encode the X_new if all_continous is false
         # Encoding simply finds the nearest point in the continous space 
@@ -1708,6 +1760,8 @@ class EHVIMOOExperiment(Experiment):
         acq_func_name: Optional[str] = 'qEHVI', 
         n_candidates: Optional[int] = 1,
         eta: Optional[float] = 0.001,
+        equality_constraints: Optional[list] = None,
+        inequality_constraints: Optional[list] = None,
         **kwargs
     ) -> Tuple[Tensor, Matrix, AcquisitionFunction]:
         """Generate the next trial point(s) using qEHVI
@@ -1722,6 +1776,19 @@ class EHVIMOOExperiment(Experiment):
             The point maximizes the acqucision function
         eta : Optional[float], optional
             hyperparameter used in qEHVI, by default 0.001
+        equality_constraints : Optional[(list[tuple[Tensor, Tensor, float]] | None)], optional
+            A list of tuples (indices, coefficients, rhs), with each tuple encoding an 
+            equality constraint of the form sum_i (X[indices[i]] * coefficients[i]) = rhs. 
+            See the docstring of make_scipy_linear_constraints for an example. 
+        inequality_constraints : Optional[(list[tuple[Tensor, Tensor, float]] | None)], optional
+            A list of tuples (indices, coefficients, rhs), with each tuple encoding an inequality 
+            constraint of the form sum_i (X[indices[i]] * coefficients[i]) >= rhs. indices and 
+            coefficients should be torch tensors. See the docstring of make_scipy_linear_constraints 
+            for an example. When q=1, or when applying the same constraint to each candidate in the 
+            batch (intra-point constraint), indices should be a 1-d tensor. For inter-point constraints, 
+            in which the constraint is applied to the whole batch of candidates, indices must be 
+            a 2-d tensor, where in each row indices[i] =(k_i, l_i) the first index k_i corresponds to 
+            the k_i-th element of the q-batch and the second index l_i corresponds to the l_i-th feature of that element.
         **kwargs：keyword arguments
             Other parameters used by 'botorch.acquisition'_
 
@@ -1756,7 +1823,9 @@ class EHVIMOOExperiment(Experiment):
         X_new = get_top_k_candidates(acq_func=acq_func,
                                      acq_func_name=acq_func_name,
                                      bounds=unit_bounds,
-                                     k=n_candidates)
+                                     k=n_candidates,
+                                     equality_constraints=equality_constraints,
+                                     inequality_constraints=inequality_constraints)
         
         # Encode the X_new if all_continous is false
         # Encoding simply finds the nearest point in the continous space 
